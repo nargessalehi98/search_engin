@@ -150,6 +150,10 @@ def pre_processing(number_of_data):
 
 
 def cal_tfidf_for_query(query, inverted_index):
+    for item in query:
+        if item == '-':
+            query.remove(item)
+
     q_dic = {}
     vector = []
     for item in query:
@@ -168,7 +172,6 @@ def cal_tfidf_for_query(query, inverted_index):
 
 def search(query, database):
     global inverted_index
-    vector_list = [0 for i in query]
     doc_id_list = []
     not_list = []
     mines_list = []
@@ -177,8 +180,8 @@ def search(query, database):
 
     if database:
         inverted_index = json.loads(open('inverted_index', 'r').readline().replace("\'", "\""))
-    # else:
-    #     inverted_index = cal_tfidf(inverted_index)
+        create_champion_list_once(inverted_index)
+    champion_list = get_champion_dic()
 
     # check phrase
     started = False
@@ -194,8 +197,8 @@ def search(query, database):
     for i in range(0, len(query)):
         if query[i] == '!':
             not_list.append(query[i + 1])
-        if query[i] in inverted_index.keys() and query[i] not in not_list:
-            for item in inverted_index[query[i]]:
+        if query[i] in champion_list.keys() and query[i] not in not_list:
+            for item in champion_list[query[i]]:
                 doc_id_list += [item]
                 if item[0] not in dic.keys():
                     vector_list = [0 for i in query]
@@ -205,14 +208,14 @@ def search(query, database):
                     dic[item[0]][i] = item[1]
     # delete not words
     for item in not_list:
-        if item in inverted_index.keys():
-            mines_list += inverted_index[item]
+        if item in champion_list.keys():
+            mines_list += champion_list[item]
 
     doc_id_list = [x for x in doc_id_list if x not in mines_list]
 
     for item in doc_id_list:
         if phrase_list:
-            filename = "docs/" + str(item) + ".json"
+            filename = "docs/" + str(item[0]) + ".json"
             database = open(filename, 'r').readline()
             data = json.loads(database)
             content = data["content"]
@@ -254,32 +257,52 @@ def get_result(dic, query_vector):
 def create_champion_list_once(inverted_index):
     champion_dic = {}
     for key, value in inverted_index.items():
-        pass
+        value = sorted(value, key=lambda x: -x[1])
+        champion_dic.update({key: value})
+    file = open('champion_list', 'w+')
+    file.write(str(champion_dic))
+
+
+def get_champion_dic():
+    return json.loads(open('champion_list', 'r').readline().replace("\'", "\""))
+
+
+def get_inverted_index():
+    return json.loads(open('inverted_index', 'r').readline().replace("\'", "\""))
 
 
 def main():
-    print("Enter process mode (1) or database mode (2):")
-    mode = input()
-    if mode == '2':
-        print("Enter query: ")
-        query = input()
-        query = normalize_data(query)
-        query = query.split()
-        dic = search(query, True)
-        inverted_index = json.loads(open('inverted_index', 'r').readline().replace("\'", "\""))
-        get_result(dic, cal_tfidf_for_query(query, inverted_index))
-    elif mode == '1':
-        print("Enter number of docs to process:")
-        number = input()
-        print("wait please, its processing...")
-        pre_processing(int(number))
-        print("Enter query: ")
-        query = input()
-        query = normalize_data(query)
-        query = query.split()
-        dic = search(query, False)
-        inverted_index = json.loads(open('inverted_index', 'r').readline().replace("\'", "\""))
-        get_result(dic, cal_tfidf_for_query(query, inverted_index))
+    while True:
+        print("Enter process mode (1) or database mode (2) write champion list (3):")
+        mode = input()
+        if mode == '2':
+            print("Enter query: ")
+            query = input()
+            query = normalize_data(query)
+            query = query.split()
+            dic = search(query, True)
+            get_result(dic, cal_tfidf_for_query(query, get_inverted_index()))
+        elif mode == '1':
+            print("Enter number of docs to process:")
+            number = input()
+            print("wait please, its processing...")
+            pre_processing(int(number))
+            print("Enter query: ")
+            query = input()
+            query = normalize_data(query)
+            query = query.split()
+            dic = search(query, False)
+            get_result(dic, cal_tfidf_for_query(query, get_inverted_index()))
+        elif mode == '3':
+            print("wanna recreate inverted_index (y or n): ")
+            ans = input()
+            if ans == 'n':
+                create_champion_list_once(inverted_index)
+            if ans == 'y':
+                print("Enter size:")
+                size = input()
+                pre_processing(int(size))
+                create_champion_list_once(get_inverted_index())
 
 
 if __name__ == '__main__':
